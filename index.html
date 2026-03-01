@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Lena Balloon</title>
+<script src="https://cdn.jsdelivr.net/npm/tone@15.1.22/build/Tone.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/"}}</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;width:100vw;height:100vh;font-family:'Arial Narrow',Arial,sans-serif;}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block;}
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10;pointer-events:auto;}
+#startScreen{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+#instr-screen{position:absolute;top:0;left:0;width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(15,28,48,0.85);}
+#hud{position:fixed;top:0;left:0;width:20px;height:100%;z-index:20;pointer-events:none;display:none;}
+.b-arrow{position:absolute;left:0;width:20px;height:20%;display:flex;align-items:center;justify-content:center;font-size:clamp(10px,1.8vw,14px);font-weight:bold;}
+#score-hud{position:fixed;top:clamp(6px,1.5vh,12px);right:clamp(6px,1.5vw,12px);z-index:20;color:#FDE082;font-size:clamp(13px,2vw,18px);text-shadow:0 0 8px #F0A832;display:none;text-align:right;pointer-events:none;}
+#banner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;color:#FDE082;font-size:clamp(18px,4vw,36px);font-weight:bold;text-shadow:0 0 16px #F0A832;display:none;text-align:center;pointer-events:none;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="overlay">
+  <div id="startScreen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;position:absolute;top:0;left:0;width:100%;height:100%;">
+    <svg width="520" height="210" viewBox="0 0 520 210" style="overflow:visible;max-width:88vw;">
+      <defs>
+        <filter id="titleglow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur in="SourceGraphic" id="gbsd" stdDeviation="8" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <text x="260" y="90" text-anchor="middle" font-family="'Arial Narrow',Arial,sans-serif" font-size="76" font-weight="bold" fill="#F0A832" filter="url(#titleglow)">LENA</text>
+      <text x="260" y="158" text-anchor="middle" font-family="'Arial Narrow',Arial,sans-serif" font-size="50" fill="#FDE082" filter="url(#titleglow)">BALLOON</text>
+    </svg>
+    <p style="color:#FDE082;font-size:clamp(13px,2.2vw,18px);opacity:0.7;margin-top:8px;letter-spacing:1px;font-style:italic;">"The sky has roads. Learn to read them."</p>
+    <p style="color:#FDE082;font-size:clamp(13px,1.8vw,14px);opacity:0.45;margin-top:6px;letter-spacing:0.5px;">Hold to rise · Release to fall · Read the wind</p>
+    <p id="hprompt" style="color:#E04F35;font-size:clamp(13px,2.2vw,16px);margin-top:36px;letter-spacing:2px;font-weight:bold;">HOLD TO BEGIN</p>
+  </div>
+  <div id="instr-screen">
+    <div style="max-width:min(480px,88vw);text-align:center;padding:28px 20px;">
+      <h2 style="color:#F0A832;font-size:clamp(18px,3.8vw,30px);margin-bottom:18px;text-shadow:0 0 12px #F0A832;">HOW TO FLY</h2>
+      <p style="color:#FDE082;font-size:clamp(13px,2.2vw,17px);line-height:1.75;margin-bottom:14px;"><strong style="color:#F0A832;">HOLD</strong> anywhere to rise.<br><strong style="color:#6EAAC4;">RELEASE</strong> to fall with the wind.</p>
+      <p style="color:#FDE082;font-size:clamp(13px,2.2vw,17px);line-height:1.75;margin-bottom:14px;">The sky has <strong style="color:#F0A832;">5 wind bands</strong>.<br><span style="color:#F0C87A;">Warm colours →</span> push you right.<br><span style="color:#6EAAC4;">Cool colours ←</span> push you left.</p>
+      <p style="color:#FDE082;font-size:clamp(13px,2.2vw,17px);line-height:1.75;margin-bottom:14px;">Check the left arrows at any time.<br>Thread the gaps. Collect the waypoints.</p>
+      <p style="color:#E04F35;font-size:clamp(13px,2vw,16px);margin-bottom:22px;">You cannot steer — only choose altitude.<br>The wind does the rest.</p>
+      <p style="color:#E04F35;font-size:clamp(13px,2.2vw,16px);font-weight:bold;letter-spacing:2px;margin-top:20px;">HOLD TO FLY</p>
+    </div>
+  </div>
+</div>
+
+<div id="hud">
+  <div class="b-arrow" id="a4" style="top:0%;">—</div>
+  <div class="b-arrow" id="a3" style="top:20%;">—</div>
+  <div class="b-arrow" id="a2" style="top:40%;">—</div>
+  <div class="b-arrow" id="a1" style="top:60%;">—</div>
+  <div class="b-arrow" id="a0" style="top:80%;">—</div>
+</div>
+<div id="score-hud"></div>
+<div id="banner"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+const W = 800, H = 600;
+const BAND_H = 120;
+const NUM_BANDS = 5;
+const BX = 200;       // balloon fixed screen x
+const BR = 22;        // balloon radius
+// Physics: y=0 top, y=600 bottom. Up = y decreasing.
+// Hold → velocity goes negative (upward). Release → velocity goes positive (downward).
+const RISE_VEL = -2.8;  // px/frame applied each frame holding (negative = up)
+const FALL_VEL = +1.6;  // px/frame applied each frame releasing (positive = down)
+const MAX_UP   = -4.2;  // terminal velocity upward (most negative)
+const MAX_DOWN = +2.8;  // terminal velocity downward (most positive)
+
+const BAND_WARM    = new THREE.Color(0xF0C87A);
+const BAND_COOL    = new THREE.Color(0x6EAAC4);
+const BAND_NEUTRAL = new THREE.Color(0x9AABB8);
+
+// Level definitions
+const LEVELS = [
+  { name:"Velarde's Rise", speeds:[+1.2,+0.6,0,-0.8,-1.4], scroll:2.0, freq:900, gap:260, wps:3,  len:6000,  tAmp:0,   tInt:0,  seed:1001, shifts:false, sInt:0,    sBands:[] },
+  { name:"Cliff Coast",    speeds:[+1.8,+0.9,0,-1.1,-2.0], scroll:2.4, freq:700, gap:220, wps:5,  len:8000,  tAmp:0,   tInt:0,  seed:1002, shifts:false, sInt:0,    sBands:[] },
+  { name:"Storm Belt",     speeds:[+2.2,+1.2,0,-1.4,-2.5], scroll:2.8, freq:550, gap:180, wps:5,  len:9000,  tAmp:0.4, tInt:90, seed:1003, shifts:false, sInt:0,    sBands:[] },
+  { name:"The Shifting",   speeds:[+2.5,+1.4,0,-1.8,-3.0], scroll:3.0, freq:420, gap:160, wps:6,  len:10000, tAmp:0.6, tInt:60, seed:1004, shifts:true,  sInt:1800, sBands:[0,2,4] },
+  { name:"Chart Run",      speeds:[+3.0,+1.6,0,-2.2,-3.5], scroll:3.4, freq:320, gap:140, wps:8,  len:12000, tAmp:0.8, tInt:45, seed:1005, shifts:true,  sInt:1200, sBands:[1,3] },
+];
+const PAR_TIMES = [55, 70, 80, 90, 100];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let gState = 'start'; // start|instructions|playing|dead|lvlend|gameover
+let holding = false;
+let hasActed = false;
+let ballY = H/2, ballVY = 0;
+let worldX = 0;
+let score = 0;
+let lvlIdx = 0;
+let frame = 0;
+let turbVal = 0, turbTimer = 0;
+let bandSpeeds = [];
+let obstacles = [], wps = [], goalX = 0, goalDone = false;
+let shiftEvts = [];
+let deathTimer = 0;
+let prevBand = -1, curBand = 2;
+let startTime = 0, cleanPass = true;
+let lvlEndTimer = 0;
+let scalePulse = 0; // frames remaining
+let animBobT = 0;
+let promptT  = 0;
+
+// ── SEEDED RNG ─────────────────────────────────────────────────────────────────
+function makeRNG(seed) {
+  let s = seed >>> 0;
+  return () => { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return (s >>> 0) / 4294967296; };
+}
+
+// ── THREE SETUP ───────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+// Orthographic camera: screen-like coords.
+// OrthographicCamera(left, right, top, bottom, near, far)
+// top=0, bottom=H: y=0 is at screen top, y=H at screen bottom (y increases downward).
+// This matches screen/CSS coordinates exactly.
+const cam = new THREE.OrthographicCamera(0, W, 0, H, -100, 100);
+cam.position.z = 50;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x7FA8C9);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, cam));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight), 0.35, 0.4, 0.72
+);
+composer.addPass(bloomPass);
+
+// ── SKY GRADIENT ──────────────────────────────────────────────────────────────
+{
+  const geo = new THREE.BufferGeometry();
+  // Vertices: TL(0,0), TR(W,0), BR(W,H), BL(0,H) — screen coords y=0 top, y=H bottom
+  const pos2 = new Float32Array([0,0,-60, W,0,-60, W,H,-60, 0,H,-60]);
+  const col2 = new Float32Array([
+    // y=0 top → sky blue
+    127/255, 168/255, 201/255,
+    127/255, 168/255, 201/255,
+    // y=H bottom → warm horizon
+    196/255, 147/255,  90/255,
+    196/255, 147/255,  90/255,
+  ]);
+  geo.setAttribute('position', new THREE.BufferAttribute(pos2, 3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(col2, 3));
+  geo.setIndex([0,1,2, 0,2,3]);
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, depthWrite: false, side: THREE.DoubleSide });
+  scene.add(new THREE.Mesh(geo, mat));
+}
+
+// ── BAND TINT PLANES ──────────────────────────────────────────────────────────
+// Band 0 = bottom (y:480→600), Band 4 = top (y:0→120)
+// Band b occupies screen y from (4-b)*120 to (4-b+1)*120
+const bandPlanes = [];
+for (let b = 0; b < NUM_BANDS; b++) {
+  const geo = new THREE.PlaneGeometry(W, BAND_H);
+  const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  const m = new THREE.Mesh(geo, mat);
+  // center y of band b in screen coords:
+  const cy = (4 - b) * BAND_H + BAND_H / 2;
+  m.position.set(W/2, cy, -40);
+  scene.add(m);
+  bandPlanes.push(m);
+}
+
+// ── BAND BOUNDARY LINES ───────────────────────────────────────────────────────
+for (let i = 1; i < NUM_BANDS; i++) {
+  const y = i * BAND_H; // screen y: band boundaries at 120, 240, 360, 480
+  const pts = [new THREE.Vector3(0, y, -38), new THREE.Vector3(W, y, -38)];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 });
+  scene.add(new THREE.Line(geo, mat));
+}
+
+// ── STREAKS ────────────────────────────────────────────────────────────────────
+const STREAKS_PER_BAND = 6;
+const streakGroup = new THREE.Group();
+streakGroup.position.z = -20;
+scene.add(streakGroup);
+const streakArr = []; // {line, bandIdx, x, speed, len, bandTopY}
+
+function buildStreaks(speeds) {
+  while (streakGroup.children.length) streakGroup.remove(streakGroup.children[0]);
+  streakArr.length = 0;
+  const rng = makeRNG(7777);
+  for (let b = 0; b < NUM_BANDS; b++) {
+    const spd = speeds[b];
+    if (Math.abs(spd) < 0.05) continue;
+    const col = spd > 0 ? BAND_WARM : BAND_COOL;
+    const bandTopY = (4 - b) * BAND_H;
+    for (let s = 0; s < STREAKS_PER_BAND; s++) {
+      const len = 40 + rng() * 40;
+      const geo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(len, 0, 0)
+      ]);
+      const mat = new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.6 });
+      const line = new THREE.Line(geo, mat);
+      const sx = rng() * W;
+      const sy = bandTopY + rng() * BAND_H;
+      line.position.set(sx, sy, 0);
+      // For leftward streaks, flip x
+      if (spd < 0) line.scale.x = -1;
+      streakGroup.add(line);
+      streakArr.push({ line, b, x: sx, len, spd, topY: bandTopY });
+    }
+  }
+}
+
+function tickStreaks(speeds) {
+  for (const sk of streakArr) {
+    const spd = speeds[sk.b];
+    sk.x += spd;
+    const w = sk.len;
+    if (spd > 0 && sk.x > W + w)    sk.x = -w;
+    if (spd < 0 && sk.x + w < 0)    sk.x = W + w;
+    sk.line.position.x = sk.x;
+    sk.line.scale.x = spd < 0 ? -1 : 1;
+  }
+}
+
+// ── WORLD GROUP ───────────────────────────────────────────────────────────────
+const worldGrp = new THREE.Group();
+worldGrp.position.z = -30;
+scene.add(worldGrp);
+
+// ── ISLAND SILHOUETTES (Start/Parallax) ──────────────────────────────────────
+const islandGrp = new THREE.Group();
+islandGrp.position.z = -50;
+scene.add(islandGrp);
+
+const ISLAND_DEFS = [
+  { w:280, h:55, y:480, spd:0.15 },
+  { w:180, h:38, y:512, spd:0.10 },
+  { w:120, h:28, y:533, spd:0.08 },
+  { w: 90, h:18, y:548, spd:0.06 },
+];
+const islandMeshes = ISLAND_DEFS.map(d => {
+  const geo = new THREE.PlaneGeometry(d.w, d.h);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x2A2520 });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(d.w/2 + 60 + Math.random()*200, d.y + d.h/2, 0);
+  islandGrp.add(m);
+  return { m, x: m.position.x, ...d };
+});
+
+function tickIslands(forceShow) {
+  for (const isl of islandMeshes) {
+    isl.x -= isl.spd;
+    if (isl.x + isl.w/2 < -10) isl.x = W + isl.w/2 + 20;
+    isl.m.position.x = isl.x;
+  }
+  islandGrp.visible = true;
+}
+
+// ── BALLOON ────────────────────────────────────────────────────────────────────
+const ballGrp = new THREE.Group();
+ballGrp.position.z = 5;
+scene.add(ballGrp);
+
+// Envelope circle
+const envMesh = new THREE.Mesh(
+  new THREE.CircleGeometry(BR, 32),
+  new THREE.MeshBasicMaterial({ color: 0xF0A832 })
+);
+ballGrp.add(envMesh);
+
+// Highlight
+const hlMesh = new THREE.Mesh(
+  new THREE.CircleGeometry(BR * 0.5, 24),
+  new THREE.MeshBasicMaterial({ color: 0xFDE082, transparent: true, opacity: 0.5 })
+);
+hlMesh.position.set(-7, -7, 0.1);
+ballGrp.add(hlMesh);
+
+// Bloom glow ring
+const glowMesh = new THREE.Mesh(
+  new THREE.RingGeometry(BR + 2, BR + 16, 32),
+  new THREE.MeshBasicMaterial({ color: 0xF0A832, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
+);
+glowMesh.position.z = -0.5;
+ballGrp.add(glowMesh);
+
+// Panel seams
+for (let i = 0; i < 4; i++) {
+  const a = (i / 4) * Math.PI * 2;
+  const pts = [
+    new THREE.Vector3(Math.cos(a)*2, -BR*0.95, 0.2),
+    new THREE.Vector3(Math.cos(a)*4, BR*0.3, 0.2)
+  ];
+  const l = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0xC87820, transparent: true, opacity: 0.4 })
+  );
+  ballGrp.add(l);
+}
+
+// Ropes (4 lines envelope-bottom → basket)
+const ROPE_XS = [-10, -4, 4, 10];
+for (const rx of ROPE_XS) {
+  const pts = [new THREE.Vector3(rx*0.7, BR, 0.1), new THREE.Vector3(rx, BR+22, 0.1)];
+  ballGrp.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0x4A3020 })
+  ));
+}
+
+// Basket
+const baskMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(16, 12),
+  new THREE.MeshBasicMaterial({ color: 0x8C6E4B })
+);
+baskMesh.position.set(0, BR + 28, 0.1);
+ballGrp.add(baskMesh);
+
+// Lena silhouette
+const lenaMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(10, 13),
+  new THREE.MeshBasicMaterial({ color: 0xE04F35 })
+);
+lenaMesh.position.set(1, BR + 18, 0.2);
+ballGrp.add(lenaMesh);
+
+// Burner flame
+const flameMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(5, 7),
+  new THREE.MeshBasicMaterial({ color: 0xFFF0A0, transparent: true, opacity: 0 })
+);
+flameMesh.position.set(0, BR + 4, 0.3);
+ballGrp.add(flameMesh);
+
+// ── LEVEL BUILDER ──────────────────────────────────────────────────────────────
+function buildLevel(li) {
+  while (worldGrp.children.length) worldGrp.remove(worldGrp.children[0]);
+  obstacles = []; wps = []; shiftEvts = [];
+  goalDone = false; worldX = 0;
+
+  const lvl = LEVELS[li];
+  const rng = makeRNG(lvl.seed);
+  bandSpeeds = [...lvl.speeds];
+
+  // Obstacles (cliff pairs)
+  let ox = 900;
+  while (ox < lvl.len - 500) {
+    const gc = 80 + rng() * (H - 160);   // gap center
+    const hg = lvl.gap / 2;
+    const topH   = gc - hg;
+    const botH   = H - (gc + hg);
+    const obsW   = 55 + rng() * 20;
+
+    if (topH > 10) {
+      const m = makeRect(obsW, topH, 0x8C6E4B);
+      m.position.set(ox, topH/2, 0);
+      worldGrp.add(m);
+      obstacles.push({ wx: ox - obsW/2, y: 0,       w: obsW, h: topH });
+    }
+    if (botH > 10) {
+      const m = makeRect(obsW, botH, 0x8C6E4B);
+      m.position.set(ox, H - botH/2, 0);
+      worldGrp.add(m);
+      obstacles.push({ wx: ox - obsW/2, y: H - botH, w: obsW, h: botH });
+    }
+    ox += lvl.freq * (0.65 + rng() * 0.7);
+  }
+
+  // Waypoints
+  const wpBandSeq = [2,4,1,3,0,4,2,1,3];
+  const wpSpacing = (lvl.len - 1200) / (lvl.wps + 1);
+  for (let i = 0; i < lvl.wps; i++) {
+    const wx = 700 + (i+1) * wpSpacing + (rng()-0.5) * 200;
+    const band = wpBandSeq[i % wpBandSeq.length];
+    const cy = (4 - band) * BAND_H + BAND_H / 2;
+
+    // Lantern circle
+    const lanternMat = new THREE.MeshBasicMaterial({ color: 0xE04F35, transparent: true, opacity: 0.9 });
+    const lm = new THREE.Mesh(new THREE.CircleGeometry(18, 16), lanternMat);
+    lm.position.set(wx, cy, 1);
+    worldGrp.add(lm);
+
+    // Inner glow
+    const igMat = new THREE.MeshBasicMaterial({ color: 0xF0A832, transparent: true, opacity: 0.7 });
+    const ig = new THREE.Mesh(new THREE.CircleGeometry(10, 16), igMat);
+    ig.position.set(wx, cy, 1.1);
+    worldGrp.add(ig);
+
+    // Rope line
+    const rPts = [new THREE.Vector3(wx,cy-22,0.5), new THREE.Vector3(wx,cy+22,0.5)];
+    worldGrp.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(rPts),
+      new THREE.LineBasicMaterial({ color: 0xE04F35, transparent: true, opacity: 0.7 })
+    ));
+
+    wps.push({ wx, cy, mat: lanternMat, igMat, done: false, active: (li < 4 || i === 0) });
+  }
+
+  // Goal marker
+  goalX = lvl.len - 250;
+  const gm = new THREE.Mesh(new THREE.CircleGeometry(24, 24),
+    new THREE.MeshBasicMaterial({ color: 0xE04F35 }));
+  gm.position.set(goalX, H/2, 1);
+  worldGrp.add(gm);
+  const gg = new THREE.Mesh(new THREE.RingGeometry(26, 40, 24),
+    new THREE.MeshBasicMaterial({ color: 0xF0A832, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+  gg.position.set(goalX, H/2, 0.9);
+  worldGrp.add(gg);
+
+  // Band shift events
+  if (lvl.shifts) {
+    let ex = lvl.sInt;
+    while (ex < lvl.len - 600) {
+      const band = lvl.sBands[Math.floor(rng() * lvl.sBands.length)];
+      shiftEvts.push({ wx: ex, band, done: false });
+      ex += lvl.sInt;
+    }
+  }
+
+  buildStreaks(bandSpeeds);
+  updateHUD(bandSpeeds);
+  turbTimer = 0; turbVal = 0;
+}
+
+function makeRect(w, h, color) {
+  return new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({ color })
+  );
+}
+
+// ── HUD ARROWS ─────────────────────────────────────────────────────────────────
+function updateHUD(speeds) {
+  for (let b = 0; b < NUM_BANDS; b++) {
+    const el = document.getElementById('a' + b);
+    const s = speeds[b];
+    if (s > 0.05)       { el.textContent = '→'; el.style.color = '#F0C87A'; }
+    else if (s < -0.05) { el.textContent = '←'; el.style.color = '#6EAAC4'; }
+    else                { el.textContent = '—'; el.style.color = '#9AABB8'; }
+  }
+}
+
+function refreshBandVisuals(speeds) {
+  const cb = 4 - Math.floor(Math.min(ballY, H-1) / BAND_H);
+  for (let b = 0; b < NUM_BANDS; b++) {
+    const s = speeds[b];
+    let col, alpha;
+    if (s > 0.05)      { col = BAND_WARM;    alpha = b === cb ? 0.38 : 0.28; }
+    else if (s < -0.05){ col = BAND_COOL;    alpha = b === cb ? 0.38 : 0.28; }
+    else               { col = BAND_NEUTRAL; alpha = b === cb ? 0.22 : 0.15; }
+    bandPlanes[b].material.color.set(col);
+    bandPlanes[b].material.opacity = alpha;
+  }
+}
+
+// ── COLLISION ──────────────────────────────────────────────────────────────────
+function checkHit() {
+  if (ballY <= 22 || ballY >= H - 22) return true;
+  for (const o of obstacles) {
+    const sx = o.wx - worldX; // screen x of obstacle left edge
+    if (sx > BX + 60 || sx + o.w < BX - 60) continue;
+    const nx = Math.max(sx, Math.min(BX, sx + o.w));
+    const ny = Math.max(o.y, Math.min(ballY, o.y + o.h));
+    const dx = BX - nx, dy = ballY - ny;
+    if (dx*dx + dy*dy < BR*BR) return true;
+    if (Math.sqrt(dx*dx + dy*dy) < 60) cleanPass = false;
+  }
+  return false;
+}
+
+// ── AUDIO ──────────────────────────────────────────────────────────────────────
+let A = {}, audioOk = false;
+
+async function initAudio() {
+  await Tone.start();
+
+  // Reverb
+  const rev = new Tone.Reverb({ decay:4, wet:0.55 }).toDestination();
+  const srev = new Tone.Reverb({ decay:0.7, wet:0.3 }).toDestination();
+
+  // Vinyl (always on)
+  const vfil = new Tone.Filter(800, 'lowpass').toDestination();
+  A.vinyl = new Tone.NoiseSynth({ noise:{type:'pink'}, envelope:{attack:0.1,decay:0,sustain:1,release:0.5}, volume:-28 }).connect(vfil);
+  A.vinyl.triggerAttack();
+
+  // Pluck dulcimer
+  A.pluck = new Tone.PluckSynth({ attackNoise:1.2, dampening:3800, resonance:0.96, volume:-8 }).connect(rev);
+
+  // Bass pad
+  A.bass = new Tone.Synth({ oscillator:{type:'triangle'}, envelope:{attack:0.5,decay:0.2,sustain:0.8,release:1.8}, volume:-15 }).connect(srev);
+
+  // Hand pan (FMSynth — MetalSynth is not valid)
+  A.pan = new Tone.FMSynth({ harmonicity:8, modulationIndex:10, envelope:{attack:0.01,decay:0.4,sustain:0,release:0.3}, volume:-14 }).toDestination();
+
+  // Flute
+  const vib = new Tone.Vibrato({ depth:0.3, frequency:5.2 });
+  const frev = new Tone.Reverb({ decay:3, wet:0.7 }).toDestination();
+  vib.connect(frev);
+  A.flute = new Tone.Synth({ oscillator:{type:'sine'}, envelope:{attack:0.4,decay:0.2,sustain:0.8,release:0.6}, volume:-20 }).connect(vib);
+
+  // Wind (R/L)
+  const wfilR = new Tone.Filter(900,'lowpass');
+  const wpanR = new Tone.Panner(0.4).toDestination();
+  wfilR.connect(wpanR);
+  A.windR = new Tone.NoiseSynth({ noise:{type:'white'}, envelope:{attack:0.2,decay:0,sustain:1,release:0.3}, volume:-24 }).connect(wfilR);
+  A.windRon = false;
+
+  const wfilL = new Tone.Filter(900,'lowpass');
+  const wpanL = new Tone.Panner(-0.4).toDestination();
+  wfilL.connect(wpanL);
+  A.windL = new Tone.NoiseSynth({ noise:{type:'white'}, envelope:{attack:0.2,decay:0,sustain:1,release:0.3}, volume:-24 }).connect(wfilL);
+  A.windLon = false;
+
+  // Burner
+  const bfil = new Tone.Filter(600,'lowpass').toDestination();
+  A.burner = new Tone.NoiseSynth({ noise:{type:'brown'}, envelope:{attack:0.1,decay:0,sustain:1,release:0.2}, volume:-14 }).connect(bfil);
+  A.burnOn = false;
+
+  // Band bell (FMSynth)
+  A.bell = new Tone.FMSynth({ harmonicity:5, modulationIndex:12, envelope:{attack:0.01,decay:0.25,sustain:0,release:0.1}, volume:-10 }).toDestination();
+
+  // Goal pluck
+  A.goal = new Tone.PluckSynth({ attackNoise:1.2, dampening:3800, resonance:0.96, volume:-4 }).connect(rev);
+
+  // Death
+  A.deathN = new Tone.NoiseSynth({ noise:{type:'white'}, envelope:{attack:0.01,decay:0.4,sustain:0,release:0}, volume:-6 }).toDestination();
+  A.deathS = new Tone.Synth({ oscillator:{type:'sawtooth'}, envelope:{attack:0.01,decay:0.6,sustain:0,release:0}, portamento:0.5, volume:-10 }).toDestination();
+
+  // Altitude warn
+  A.warn = new Tone.Synth({ oscillator:{type:'sine'}, envelope:{attack:0.01,decay:0.08,sustain:0,release:0}, volume:-20 }).toDestination();
+  A.warnCd = 0;
+
+  // Music loops
+  const motif = ['D4','F#4','A4','D5','E5'];
+  let mi = 0;
+  A.motifLoop = new Tone.Loop(t => {
+    if (gState !== 'start' && gState !== 'instructions' && gState !== 'playing') return;
+    try { A.pluck.triggerAttackRelease(motif[mi++ % motif.length], '8n', t); } catch(e){}
+  }, '4n');
+
+  A.bassLoop = new Tone.Loop(t => {
+    if (gState !== 'playing') return;
+    try { A.bass.triggerAttackRelease('D2','2n',t); } catch(e){}
+  }, '2n');
+
+  A.panLoop = new Tone.Loop(t => {
+    if (gState !== 'playing') return;
+    try { A.pan.triggerAttackRelease('A3','8n',t); } catch(e){}
+  }, '4n');
+
+  A.fluteLoop = new Tone.Loop(t => {
+    if (gState !== 'playing') return;
+    if (curBand >= 3) {
+      const fn = ['D5','E5','F#5','A5'];
+      try { A.flute.triggerAttackRelease(fn[Math.floor(Math.random()*fn.length)],'4n',t); } catch(e){}
+    }
+  }, '2n');
+
+  Tone.Transport.bpm.value = 76;
+  A.motifLoop.start(0);
+  A.bassLoop.start('+0.5');
+  A.panLoop.start('+1');
+  A.fluteLoop.start('+1');
+  Tone.Transport.start();
+
+  audioOk = true;
+}
+
+function sfxBell() {
+  if (!audioOk) return;
+  try { A.bell.triggerAttackRelease('A4','16n'); } catch(e){}
+}
+
+function sfxGoal() {
+  if (!audioOk) return;
+  const notes = ['D5','F#5','A5','D6','E6'];
+  let t = Tone.now();
+  notes.forEach((n,i) => { try { A.goal.triggerAttackRelease(n,'8n', t + i*0.18); } catch(e){} });
+}
+
+function sfxDeath() {
+  if (!audioOk) return;
+  try { A.deathN.triggerAttackRelease('4n'); } catch(e){}
+  try { A.deathS.triggerAttackRelease('A4','0.6'); A.deathS.frequency.rampTo(110,0.6); } catch(e){}
+}
+
+function stopWind() {
+  if (!audioOk) return;
+  try { if (A.windRon) { A.windR.triggerRelease(); A.windRon=false; } } catch(e){}
+  try { if (A.windLon) { A.windL.triggerRelease(); A.windLon=false; } } catch(e){}
+  try { if (A.burnOn)  { A.burner.triggerRelease(); A.burnOn=false; } } catch(e){}
+}
+
+function updateAudio(band, speeds) {
+  if (!audioOk) return;
+  const spd = speeds[band] || 0;
+
+  // Wind direction
+  if (spd > 0.05) {
+    if (!A.windRon) { try { A.windR.triggerAttack(); A.windRon=true; } catch(e){} }
+    if  (A.windLon) { try { A.windL.triggerRelease(); A.windLon=false; } catch(e){} }
+  } else if (spd < -0.05) {
+    if (!A.windLon) { try { A.windL.triggerAttack(); A.windLon=true; } catch(e){} }
+    if  (A.windRon) { try { A.windR.triggerRelease(); A.windRon=false; } catch(e){} }
+  } else {
+    if (A.windRon) { try { A.windR.triggerRelease(); A.windRon=false; } catch(e){} }
+    if (A.windLon) { try { A.windL.triggerRelease(); A.windLon=false; } catch(e){} }
+  }
+
+  // Burner
+  if (holding && !A.burnOn) { try { A.burner.triggerAttack(); A.burnOn=true; } catch(e){} }
+  if (!holding && A.burnOn) { try { A.burner.triggerRelease(); A.burnOn=false; } catch(e){} }
+
+  // Altitude warning
+  A.warnCd = Math.max(0, A.warnCd - 1);
+  if ((ballY < 38 || ballY > H-38) && A.warnCd === 0) {
+    try { A.warn.triggerAttackRelease('660','16n'); } catch(e){}
+    A.warnCd = 24;
+  }
+}
+
+// ── INPUT ──────────────────────────────────────────────────────────────────────
+const overlay    = document.getElementById('overlay');
+const startDiv   = document.getElementById('startScreen');
+const instrDiv   = document.getElementById('instr-screen');
+const hud        = document.getElementById('hud');
+const scoreHud   = document.getElementById('score-hud');
+const banner     = document.getElementById('banner');
+const hprompt    = document.getElementById('hprompt');
+
+function goToInstructions() {
+  startDiv.style.display = 'none';
+  instrDiv.style.display = 'flex';
+  gState = 'instructions';
+}
+
+function startGame() {
+  // Immediately hide all overlay children
+  startDiv.style.display = 'none';
+  instrDiv.style.display = 'none';
+  // Make overlay invisible and non-interactive
+  overlay.style.pointerEvents = 'none';
+  overlay.style.opacity = '0';
+  hud.style.display = 'block';
+  scoreHud.style.display = 'block';
+  lvlIdx = 0; score = 0; cleanPass = true;
+  buildLevel(lvlIdx);
+  ballY = H/2; ballVY = 0;
+  startTime = Date.now();
+  hasActed = false;
+  prevBand = -1;
+  gState = 'playing';
+  showBanner('Level 1: ' + LEVELS[0].name, 2500);
+}
+
+function showBanner(txt, dur) {
+  banner.textContent = txt;
+  banner.style.display = 'block';
+  banner.style.opacity = '1';
+  let t = 0;
+  const iv = setInterval(() => {
+    t += 16;
+    if (t >= dur) { banner.style.display='none'; clearInterval(iv); }
+    else if (t > dur - 500) banner.style.opacity = String((dur - t) / 500);
+  }, 16);
+}
+
+document.addEventListener('pointerdown', e => {
+  if (gState === 'start')        { goToInstructions(); initAudio().catch(()=>{}); return; }
+  if (gState === 'instructions') { startGame(); holding=true; hasActed=true; return; }
+  if (gState === 'playing')      { holding=true; hasActed=true; }
+}, true);
+
+document.addEventListener('pointerup',     () => { holding = false; }, true);
+document.addEventListener('pointercancel', () => { holding = false; }, true);
+
+document.addEventListener('keydown', e => {
+  if (gState === 'start')        { goToInstructions(); initAudio().catch(()=>{}); return; }
+  if (gState === 'instructions') { startGame(); return; }
+  if (gState === 'playing')      { holding=true; hasActed=true; }
+}, true);
+document.addEventListener('keyup', () => { holding=false; }, true);
+
+// ── RESIZE ─────────────────────────────────────────────────────────────────────
+function onResize() {
+  renderer.setSize(W, H);
+  composer.setSize(W, H);
+  // Scale canvas to fill screen via CSS, maintaining aspect ratio
+  const ar = window.innerWidth / window.innerHeight;
+  const tar = W / H;
+  if (ar > tar) {
+    const s = window.innerHeight / H;
+    canvas.style.width  = (W * s) + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    canvas.style.left   = ((window.innerWidth - W * s) / 2) + 'px';
+    canvas.style.top    = '0px';
+  } else {
+    const s = window.innerWidth / W;
+    canvas.style.width  = window.innerWidth + 'px';
+    canvas.style.height = (H * s) + 'px';
+    canvas.style.left   = '0px';
+    canvas.style.top    = ((window.innerHeight - H * s) / 2) + 'px';
+  }
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+// ── GAME COMPLETE ──────────────────────────────────────────────────────────────
+function showGameComplete() {
+  overlay.style.pointerEvents = 'auto';
+  overlay.style.opacity = '1';
+  overlay.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(15,28,48,0.9);text-align:center;padding:30px;">
+    <h1 style="color:#F0A832;font-size:clamp(22px,5vw,46px);text-shadow:0 0 20px #F0A832;margin-bottom:16px;">WIND ATLAS COMPLETE</h1>
+    <p style="color:#FDE082;font-size:clamp(13px,2.2vw,20px);margin-bottom:8px;">Lena Vasari, Wind-Cartographer</p>
+    <p style="color:#FDE082;font-size:clamp(13px,2vw,17px);opacity:0.65;font-style:italic;margin-bottom:20px;">"The winds remember. You just have to listen at the right height."</p>
+    <p style="color:#F0A832;font-size:clamp(22px,4.5vw,40px);margin-bottom:26px;">Score: ${Math.floor(score)}</p>
+    <p style="color:#FDE082;font-size:clamp(13px,1.8vw,15px);opacity:0.5;">Hold anywhere to fly again</p>
+  </div>`;
+  overlay.addEventListener('pointerdown', () => location.reload(), { once:true });
+}
+
+// ── MAIN LOOP ──────────────────────────────────────────────────────────────────
+function animate(ts) {
+  requestAnimationFrame(animate);
+  frame++;
+
+  // ── Start / Instructions (animation only) ──
+  if (gState === 'start' || gState === 'instructions') {
+    animBobT += 1/60;
+    promptT  += 1/60;
+
+    // Balloon bob
+    const by = H/2 - 80 + Math.sin(animBobT * Math.PI * 2 / 3.8) * 6;
+    const bx = BX  +      Math.sin(animBobT * Math.PI * 2 / 5.2) * 2;
+    ballGrp.position.set(bx, by, 5);
+
+    // Flame pulse
+    const fp = 0.5 + Math.sin(animBobT * Math.PI * 2 * 1.2) * 0.4;
+    flameMesh.material.opacity = Math.max(0, fp);
+    flameMesh.scale.y = 0.5 + fp * 0.4;
+    glowMesh.material.opacity = 0.15 + Math.sin(animBobT * Math.PI*2*1.2) * 0.08;
+
+    // Prompt pulse
+    if (hprompt) hprompt.style.opacity = String(0.5 + Math.sin(promptT * Math.PI*2*0.9) * 0.5);
+
+    // SVG glow breathe
+    const gb = document.getElementById('gbsd');
+    if (gb) gb.setAttribute('stdDeviation', String(6 + Math.sin(animBobT*Math.PI*2/2.8)*2));
+
+    // Island drift
+    tickIslands();
+
+    // Streaks (start screen uses L1 speeds)
+    tickStreaks([1.2,0.6,0,-0.8,-1.4]);
+
+    // Band tints (start screen preview)
+    const ss = [1.2,0.6,0,-0.8,-1.4];
+    for (let b=0; b<NUM_BANDS; b++) {
+      const s = ss[b];
+      let col, al;
+      if (s>0.05){col=BAND_WARM;al=0.25;}
+      else if(s<-0.05){col=BAND_COOL;al=0.25;}
+      else{col=BAND_NEUTRAL;al=0.12;}
+      bandPlanes[b].material.color.set(col);
+      bandPlanes[b].material.opacity=al;
+    }
+
+    composer.render();
+    return;
+  }
+
+  // ── Dead ──
+  if (gState === 'dead') {
+    deathTimer--;
+    const pct = Math.max(0.01, deathTimer / 36);
+    ballGrp.scale.set(pct, pct, 1);
+    if (deathTimer <= 0) {
+      ballGrp.scale.set(1,1,1);
+      buildLevel(lvlIdx);
+      ballY = H/2; ballVY = 0;
+      hasActed = false; holding = false;
+      prevBand = -1;
+      startTime = Date.now();
+      cleanPass = true;
+      gState = 'playing';
+      showBanner('Level ' + (lvlIdx+1) + ': ' + LEVELS[lvlIdx].name, 2000);
+    }
+    composer.render();
+    return;
+  }
+
+  // ── Level end ──
+  if (gState === 'lvlend') {
+    lvlEndTimer--;
+    if (lvlEndTimer <= 0) {
+      lvlIdx++;
+      if (lvlIdx >= LEVELS.length) {
+        gState = 'gameover';
+        showGameComplete();
+      } else {
+        buildLevel(lvlIdx);
+        ballY = H/2; ballVY = 0;
+        hasActed = false; holding = false;
+        prevBand = -1;
+        startTime = Date.now();
+        cleanPass = true;
+        gState = 'playing';
+        showBanner('Level ' + (lvlIdx+1) + ': ' + LEVELS[lvlIdx].name, 2000);
+      }
+    }
+    renderFrame();
+    return;
+  }
+
+  if (gState === 'gameover') {
+    composer.render();
+    return;
+  }
+
+  // ── Playing ──
+  const lvl = LEVELS[lvlIdx];
+
+  // Turbulence
+  if (lvl.tAmp > 0) {
+    turbTimer++;
+    if (turbTimer >= lvl.tInt) {
+      turbTimer = 0;
+      turbVal = (Math.random()*2-1) * lvl.tAmp;
+    }
+  } else { turbVal = 0; }
+
+  // Physics
+  // Convention: ballY increases downward. Rise = ballY decreases.
+  // RISE_VEL = -2.8 (applied each holding frame)
+  // FALL_VEL = +1.6 (applied each releasing frame)
+  // MAX_UP = -4.2 (most negative allowed)
+  // MAX_DOWN = +2.8 (most positive allowed)
+  if (holding) {
+    ballVY += RISE_VEL;           // accelerate upward
+    if (ballVY < MAX_UP) ballVY = MAX_UP;
+  } else {
+    ballVY += FALL_VEL;           // drift downward
+    if (ballVY > MAX_DOWN) ballVY = MAX_DOWN;
+  }
+  ballY += ballVY + turbVal;
+  ballY = Math.max(22, Math.min(H-22, ballY));
+
+  // Current band
+  const nb = Math.max(0, Math.min(4, 4 - Math.floor(ballY / BAND_H)));
+  if (nb !== prevBand && prevBand >= 0) {
+    sfxBell();
+    scalePulse = 3;
+  }
+  prevBand = nb;
+  curBand = nb;
+
+  // Scale pulse on band cross
+  if (scalePulse > 0) {
+    scalePulse--;
+    const sp = scalePulse === 2 ? 1.04 : scalePulse === 1 ? 1.02 : 1.0;
+    ballGrp.scale.set(sp, sp, 1);
+    if (scalePulse === 0) ballGrp.scale.set(1,1,1);
+  }
+
+  // Band shifts
+  for (const ev of shiftEvts) {
+    if (!ev.done && worldX >= ev.wx) {
+      ev.done = true;
+      bandSpeeds[ev.band] = -bandSpeeds[ev.band];
+      sfxBell();
+      updateHUD(bandSpeeds);
+      buildStreaks(bandSpeeds);
+    }
+  }
+
+  // World scroll: base + wind
+  const wind = bandSpeeds[curBand];
+  const delta = lvl.scroll + wind;
+  worldX += delta;
+  score  += Math.max(0, delta) / 10;
+
+  worldGrp.position.x = -worldX;
+  islandGrp.position.x = -(worldX * 0.4);
+  tickIslands();
+
+  tickStreaks(bandSpeeds);
+  refreshBandVisuals(bandSpeeds);
+  updateHUD(bandSpeeds);
+
+  // Waypoints
+  for (let i=0; i<wps.length; i++) {
+    const wp = wps[i];
+    if (wp.done) continue;
+    if (!wp.active) continue;
+    const sx = wp.wx - worldX;
+    const dx = BX - sx, dy = ballY - wp.cy;
+    if (dx*dx + dy*dy < 30*30) {
+      wp.done = true;
+      wp.mat.opacity = 0.2;
+      wp.igMat.opacity = 0.15;
+      score += 500;
+      if (lvlIdx === 4 && i+1 < wps.length) wps[i+1].active = true;
+      sfxGoal();
+    }
+  }
+
+  // Goal
+  if (!goalDone) {
+    const sgx = goalX - worldX;
+    if (Math.abs(BX - sgx) < 30 && Math.abs(ballY - H/2) < 30) {
+      goalDone = true;
+      if (cleanPass) score += 1000;
+      const el = (Date.now()-startTime)/1000;
+      if (el < PAR_TIMES[lvlIdx]) score += (PAR_TIMES[lvlIdx]-el)*100;
+      gState = 'lvlend';
+      lvlEndTimer = 150;
+      stopWind();
+      sfxGoal();
+      showBanner('✓ Level ' + (lvlIdx+1) + ' Complete!', 3000);
+    }
+  }
+
+  // Collision
+  if (hasActed && checkHit()) {
+    gState = 'dead';
+    deathTimer = 36;
+    sfxDeath();
+    stopWind();
+  }
+
+  updateAudio(curBand, bandSpeeds);
+
+  // Balloon position + flame
+  ballGrp.position.set(BX, ballY, 5);
+  const fp = 0.5 + Math.sin(frame * 0.3) * 0.4;
+  flameMesh.material.opacity  = holding ? Math.max(0.3, fp) : 0;
+  flameMesh.scale.y           = holding ? (0.5 + fp*0.5) : 0.01;
+  glowMesh.material.opacity   = 0.18 + Math.sin(frame * 0.075) * 0.07;
+
+  // Score HUD
+  scoreHud.textContent = 'L' + (lvlIdx+1) + '  ' + Math.floor(score);
+
+  renderFrame();
+}
+
+function renderFrame() {
+  composer.render();
+}
+
+buildStreaks([1.2, 0.6, 0, -0.8, -1.4]);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
