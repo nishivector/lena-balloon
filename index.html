@@ -67,10 +67,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
-const W = 800, H = 600;
-const BAND_H = 120;
+const W = window.innerWidth, H = window.innerHeight;
+const BAND_H = Math.round(H / 5);
 const NUM_BANDS = 5;
-const BX = 200;       // balloon fixed screen x
+const BX = Math.round(W * 0.28);  // balloon fixed screen x (~28% from left)
 const BR = 22;        // balloon radius
 // Physics: y=0 top, y=600 bottom. Up = y decreasing.
 // Hold → velocity goes negative (upward). Release → velocity goes positive (downward).
@@ -695,24 +695,15 @@ document.addEventListener('keyup', () => { holding=false; }, true);
 
 // ── RESIZE ─────────────────────────────────────────────────────────────────────
 function onResize() {
-  renderer.setSize(W, H);
-  composer.setSize(W, H);
-  // Scale canvas to fill screen via CSS, maintaining aspect ratio
-  const ar = window.innerWidth / window.innerHeight;
-  const tar = W / H;
-  if (ar > tar) {
-    const s = window.innerHeight / H;
-    canvas.style.width  = (W * s) + 'px';
-    canvas.style.height = window.innerHeight + 'px';
-    canvas.style.left   = ((window.innerWidth - W * s) / 2) + 'px';
-    canvas.style.top    = '0px';
-  } else {
-    const s = window.innerWidth / W;
-    canvas.style.width  = window.innerWidth + 'px';
-    canvas.style.height = (H * s) + 'px';
-    canvas.style.left   = '0px';
-    canvas.style.top    = ((window.innerHeight - H * s) / 2) + 'px';
-  }
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  canvas.style.width  = '100%';
+  canvas.style.height = '100%';
+  canvas.style.left   = '0';
+  canvas.style.top    = '0';
+  cam.right  = window.innerWidth;
+  cam.bottom = window.innerHeight;
+  cam.updateProjectionMatrix();
 }
 window.addEventListener('resize', onResize);
 onResize();
